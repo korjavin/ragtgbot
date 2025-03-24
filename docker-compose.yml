@@ -9,11 +9,10 @@ services:
       - qdrant_data:/qdrant/storage
 
   embedding_service:
-    build: ./embedding_service
+    image: ghcr.io/korjavin/ragtgbot:latest
     ports:
       - "8000:8000"
-    volumes:
-      - ./embedding_service:/app
+    restart: always
     depends_on:
       - qdrant
 
