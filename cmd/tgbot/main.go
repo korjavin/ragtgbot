@@ -12,10 +12,10 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/korjavin/ragtgbot/internal/buffer"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -58,33 +58,7 @@ const (
 var (
 	embeddingServiceAddress string
 	qdrantServiceAddress    string
-	messageBufferMutex      sync.Mutex
 )
-
-// Message buffer to collect messages before processing
-type messageBuffer struct {
-	text     string
-	username string
-	size     int
-}
-
-// Add a message to the buffer
-func (b *messageBuffer) add(username, text string) {
-	if b.text == "" {
-		b.username = username // Set username from first message
-		b.text = fmt.Sprintf("%s: %s", username, text)
-	} else {
-		b.text += fmt.Sprintf("\n%s: %s", username, text)
-	}
-	b.size += len(text)
-}
-
-// Clear the buffer
-func (b *messageBuffer) clear() {
-	b.text = ""
-	b.username = ""
-	b.size = 0
-}
 
 type TextList struct {
 	Texts []string `json:"texts"`
@@ -614,22 +588,23 @@ func isAllowedChat(chatID int64, allowedGroups []int64) bool {
 }
 
 // Process message buffer and save to Qdrant
-func processBuffer(buffer *messageBuffer) error {
-	if buffer.size == 0 {
+func processBuffer(buffer *buffer.MessageBuffer) error {
+	if buffer.IsEmpty() {
 		return nil // Nothing to process
 	}
 
-	log.Printf("Processing message buffer with %d characters", buffer.size)
+	text, username, size := buffer.GetContents()
+	log.Printf("Processing message buffer with %d characters", size)
 
 	// Get embedding for combined text
-	embeddings, err := getEmbeddings([]string{buffer.text})
+	embeddings, err := getEmbeddings([]string{text})
 	if err != nil {
 		return fmt.Errorf("error getting embedding: %v", err)
 	}
 
 	// Save to Qdrant
 	id := time.Now().UnixNano()
-	err = saveToQdrant(id, buffer.text, buffer.username, embeddings)
+	err = saveToQdrant(id, text, username, embeddings)
 	if err != nil {
 		return fmt.Errorf("error saving to Qdrant: %v", err)
 	}
@@ -718,7 +693,7 @@ func main() {
 	log.Println("Graceful shutdown configured")
 
 	// Initialize message buffer
-	buffer := &messageBuffer{}
+	msgBuffer := buffer.NewMessageBuffer()
 
 	// Message handler
 	log.Println("Setting up message handler...")
@@ -743,14 +718,12 @@ func main() {
 			log.Printf("Extracted query: '%s'", query)
 
 			// Process any buffered messages before handling the query
-			messageBufferMutex.Lock()
-			if buffer.size > 0 {
-				if err := processBuffer(buffer); err != nil {
+			if !msgBuffer.IsEmpty() {
+				if err := processBuffer(msgBuffer); err != nil {
 					log.Printf("Error processing buffered messages: %v", err)
 				}
-				buffer.clear()
+				msgBuffer.Clear()
 			}
-			messageBufferMutex.Unlock()
 
 			// Get embedding for the query
 			log.Println("Getting embeddings for query...")
@@ -845,20 +818,18 @@ func main() {
 		}
 
 		// Add message to buffer
-		messageBufferMutex.Lock()
-		defer messageBufferMutex.Unlock()
-
 		log.Println("Adding message to buffer...")
-		buffer.add(c.Sender().Username, c.Text())
+		msgBuffer.Add(c.Sender().Username, c.Text())
 
 		// Process buffer if it exceeds max size
-		if buffer.size >= maxChunkSize {
+		_, _, size := msgBuffer.GetContents()
+		if size >= maxChunkSize {
 			log.Println("Buffer size exceeded maximum, processing...")
-			if err := processBuffer(buffer); err != nil {
+			if err := processBuffer(msgBuffer); err != nil {
 				log.Printf("Error processing buffer: %v", err)
 				// Don't return an error to the user for background processing
 			}
-			buffer.clear()
+			msgBuffer.Clear()
 		}
 
 		return nil
@@ -878,14 +849,12 @@ func main() {
 	<-ctx.Done()
 
 	// Process any remaining buffered messages before shutdown
-	messageBufferMutex.Lock()
-	if buffer.size > 0 {
+	if !msgBuffer.IsEmpty() {
 		log.Println("Processing remaining buffered messages before shutdown...")
-		if err := processBuffer(buffer); err != nil {
+		if err := processBuffer(msgBuffer); err != nil {
 			log.Printf("Error processing final buffer: %v", err)
 		}
 	}
-	messageBufferMutex.Unlock()
 
 	// Shutdown the bot
 	log.Println("Shutdown signal received, stopping the bot...")

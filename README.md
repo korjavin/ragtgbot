@@ -1,7 +1,16 @@
-# RAG Telegram Bot
+# RAGTGBOT - Retrieval-Augmented Generation Telegram Bot
 
-A Retrieval-Augmented Generation (RAG) bot for Telegram that stores messages in a vector database, retrieves relevant messages when queried, and uses OpenAI's GPT models to generate intelligent responses based on chat history.
+![Go Tests](https://github.com/korjavin/ragtgbot/actions/workflows/go-test.yml/badge.svg)
+![Go Checks](https://github.com/korjavin/ragtgbot/actions/workflows/go-checks.yml/badge.svg)
 
+A Telegram bot that uses vector embeddings and RAG to provide context-aware responses.
+
+## Features
+
+- Listens to and stores chat messages in a vector database
+- Uses embeddings to find similar messages when questions are asked
+- Generates responses using OpenAI models with chat history context
+- Supports uploading Telegram chat backup files
 
 ## Overview
 
@@ -187,6 +196,20 @@ The project provides Docker images for all components:
 
 - **Telegram Bot**: `ghcr.io/yourusername/ragtgbot-tgbot:latest`
 - **Embedding Service**: `ghcr.io/yourusername/ragtgbot-embedding-service:latest`
+
+## Development
+
+### Running tests
+
+```bash
+go test ./...
+```
+
+### Running linting
+
+```bash
+golangci-lint run
+```
 
 ## Contributing
 

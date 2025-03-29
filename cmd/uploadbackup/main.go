@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/cheggaaa/pb/v3"
+	"github.com/korjavin/ragtgbot/internal/buffer"
 )
 
 type TelegramBackup struct {
@@ -95,28 +96,6 @@ const (
 	maxChunkSize = 3072 // Maximum characters in a chunk
 )
 
-type messageBuffer struct {
-	text     string
-	username string
-	size     int
-}
-
-func (b *messageBuffer) add(username, text string) {
-	if b.text == "" {
-		b.username = username // Set username from first message
-		b.text = fmt.Sprintf("%s: %s", username, text)
-	} else {
-		b.text += fmt.Sprintf("\n%s: %s", username, text)
-	}
-	b.size += len(text)
-}
-
-func (b *messageBuffer) clear() {
-	b.text = ""
-	b.username = ""
-	b.size = 0
-}
-
 func main() {
 	// Get filename from arguments
 	if len(os.Args) != 2 {
@@ -180,7 +159,7 @@ func main() {
 	defer bar.Finish()
 
 	// Initialize message buffer
-	buffer := &messageBuffer{}
+	msgBuffer := buffer.NewMessageBuffer()
 	lastMessageID := int64(0)
 
 	// 3. Iterate through messages and extract data
@@ -197,22 +176,22 @@ func main() {
 			lastMessageID = message.ID
 
 			// Add message to buffer
-			buffer.add(username, text)
+			msgBuffer.Add(username, text)
 
 			// Process buffer if it exceeds max size
-			if buffer.size >= maxChunkSize {
-				if err := processBuffer(buffer, lastMessageID); err != nil {
+			if msgBuffer.Size >= maxChunkSize {
+				if err := processBuffer(msgBuffer, lastMessageID); err != nil {
 					fmt.Printf("Error processing buffer at message ID %d: %v\n", lastMessageID, err)
 				}
-				buffer.clear()
+				msgBuffer.Clear()
 			}
 		}
 		bar.Increment()
 	}
 
 	// Process remaining messages in buffer
-	if buffer.size > 0 {
-		if err := processBuffer(buffer, lastMessageID); err != nil {
+	if !msgBuffer.IsEmpty() {
+		if err := processBuffer(msgBuffer, lastMessageID); err != nil {
 			fmt.Printf("Error processing final buffer: %v\n", err)
 		}
 	}
@@ -220,15 +199,18 @@ func main() {
 	fmt.Println("Finished processing Telegram backup")
 }
 
-func processBuffer(buffer *messageBuffer, messageID int64) error {
+func processBuffer(buffer *buffer.MessageBuffer, messageID int64) error {
+	// Get buffer contents
+	text, username, _ := buffer.GetContents()
+
 	// Get embedding for combined text
-	embedding, err := getEmbedding(buffer.text)
+	embedding, err := getEmbedding(text)
 	if err != nil {
 		return fmt.Errorf("error getting embedding: %v", err)
 	}
 
 	// Save to Qdrant
-	err = saveToQdrant(messageID, buffer.text, buffer.username, embedding)
+	err = saveToQdrant(messageID, text, username, embedding)
 	if err != nil {
 		return fmt.Errorf("error saving to Qdrant: %v", err)
 	}
