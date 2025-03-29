@@ -18,5 +18,19 @@ services:
     depends_on:
       - qdrant
 
+  tgbot:
+    build:
+      context: .
+      dockerfile: ./cmd/tgbot/Dockerfile
+    restart: always
+    depends_on:
+      - qdrant
+      - embedding_service
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDING_SERVICE_ADDRESS=http://embedding_service:8000/embeddings
+      - QDRANT_SERVICE_ADDRESS=http://qdrant:6333
+
 volumes:
   qdrant_data:

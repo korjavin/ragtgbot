@@ -17,10 +17,43 @@ import (
 	tele "gopkg.in/telebot.v3"
 )
 
+// OpenAI API types
+type OpenAIMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type OpenAIChatRequest struct {
+	Model    string          `json:"model"`
+	Messages []OpenAIMessage `json:"messages"`
+}
+
+type OpenAIChatResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	Choices []struct {
+		Index   int `json:"index"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
 const (
-	embeddingServiceAddress = "http://localhost:8000/embeddings" // Address of the embedding service
-	qdrantServiceAddress    = "http://localhost:6333"            // Address of the Qdrant HTTP API
-	collectionName          = "chat_history"
+	defaultEmbeddingServiceAddress = "http://localhost:8000/embeddings" // Default address of the embedding service
+	defaultQdrantServiceAddress    = "http://localhost:6333"            // Default address of the Qdrant HTTP API
+	collectionName                 = "chat_history"
+	openaiAPIURL                   = "https://api.openai.com/v1/chat/completions" // OpenAI API URL
+	openaiModel                    = "gpt-4o-mini"                                // OpenAI model to use
+	vectorSearchLimit              = 10                                           // Number of similar messages to retrieve
+)
+
+// Global variables for service addresses
+var (
+	embeddingServiceAddress string
+	qdrantServiceAddress    string
 )
 
 type TextList struct {
@@ -305,6 +338,122 @@ func deleteQdrantCollection(collectionName string) error {
 	return nil
 }
 
+// Function to call OpenAI API to generate an answer based on similar messages
+func generateOpenAIAnswer(userQuestion string, similarMessages []map[string]interface{}) (string, error) {
+	log.Printf("Generating answer with OpenAI for question: '%s'", userQuestion)
+
+	// Get OpenAI API key from environment
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		log.Printf("Error: OPENAI_API_KEY environment variable is not set")
+		return "", fmt.Errorf("OpenAI API key is not configured")
+	}
+
+	// Format similar messages into snippets
+	var snippets []string
+	for _, result := range similarMessages {
+		payload, ok := result["payload"].(map[string]interface{})
+		if !ok {
+			log.Printf("Warning: payload is not a map, skipping")
+			continue
+		}
+
+		text, ok := payload["text"].(string)
+		if !ok {
+			log.Printf("Warning: text is not a string, skipping")
+			continue
+		}
+
+		username, ok := payload["username"].(string)
+		if !ok {
+			username = "Unknown"
+		}
+
+		// Format the snippet with username
+		snippet := fmt.Sprintf("%s: %s", username, text)
+		snippets = append(snippets, snippet)
+	}
+
+	log.Printf("Constructed %d snippets from similar messages", len(snippets))
+
+	// Construct the prompt
+	prompt := "Using the following chat snippets, answer the question.\n\n" +
+		strings.Join(snippets, "\n") + "\n\nQuestion: " + userQuestion + "\nAnswer:"
+
+	log.Printf("Constructed prompt for OpenAI (length: %d characters)", len(prompt))
+
+	// Prepare the request to OpenAI
+	messages := []OpenAIMessage{
+		{
+			Role:    "user",
+			Content: prompt,
+		},
+	}
+
+	requestBody := OpenAIChatRequest{
+		Model:    openaiModel,
+		Messages: messages,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		log.Printf("Error marshaling OpenAI request: %v", err)
+		return "", err
+	}
+
+	// Create the HTTP request
+	req, err := http.NewRequest(http.MethodPost, openaiAPIURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Error creating OpenAI HTTP request: %v", err)
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	// Send the request
+	log.Printf("Sending request to OpenAI API...")
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error sending request to OpenAI: %v", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Read the response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading OpenAI response: %v", err)
+		return "", err
+	}
+
+	// Check for errors
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Error response from OpenAI (status %d): %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("OpenAI API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse the response
+	var openaiResp OpenAIChatResponse
+	err = json.Unmarshal(respBody, &openaiResp)
+	if err != nil {
+		log.Printf("Error unmarshaling OpenAI response: %v", err)
+		return "", err
+	}
+
+	// Extract the answer
+	if len(openaiResp.Choices) == 0 {
+		log.Printf("Error: OpenAI response contains no choices")
+		return "", fmt.Errorf("OpenAI response contains no choices")
+	}
+
+	answer := openaiResp.Choices[0].Message.Content
+	log.Printf("Successfully generated answer from OpenAI (length: %d characters)", len(answer))
+
+	return answer, nil
+}
+
 // Function to check if a collection exists and create it if it doesn't
 func createQdrantCollection(collectionName string) error {
 	log.Printf("Checking if collection '%s' exists...", collectionName)
@@ -429,6 +578,30 @@ func main() {
 	}
 	log.Println("Telegram token found")
 
+	// Check for OpenAI API key
+	openaiKey := os.Getenv("OPENAI_API_KEY")
+	if openaiKey == "" {
+		log.Fatal("OPENAI_API_KEY environment variable is required")
+	}
+	log.Println("OpenAI API key found")
+
+	// Set service addresses from environment variables or use defaults
+	embeddingServiceAddress = os.Getenv("EMBEDDING_SERVICE_ADDRESS")
+	if embeddingServiceAddress == "" {
+		embeddingServiceAddress = defaultEmbeddingServiceAddress
+		log.Printf("EMBEDDING_SERVICE_ADDRESS not set, using default: %s", embeddingServiceAddress)
+	} else {
+		log.Printf("Using embedding service at: %s", embeddingServiceAddress)
+	}
+
+	qdrantServiceAddress = os.Getenv("QDRANT_SERVICE_ADDRESS")
+	if qdrantServiceAddress == "" {
+		qdrantServiceAddress = defaultQdrantServiceAddress
+		log.Printf("QDRANT_SERVICE_ADDRESS not set, using default: %s", qdrantServiceAddress)
+	} else {
+		log.Printf("Using Qdrant service at: %s", qdrantServiceAddress)
+	}
+
 	// Create Qdrant collection if it doesn't exist
 	err := createQdrantCollection(collectionName)
 	if err != nil {
@@ -479,42 +652,74 @@ func main() {
 			}
 			log.Println("Embeddings generated successfully")
 
-			// Search the vector database
+			// Search the vector database for top similar messages
 			log.Println("Searching vector database for similar messages...")
-			searchResults, err := searchQdrant(queryEmbeddings, 5)
+			searchResults, err := searchQdrant(queryEmbeddings, vectorSearchLimit)
 			if err != nil {
 				log.Printf("Error searching vector database: %v", err)
 				return c.Send("Error processing your query")
 			}
 			log.Printf("Found %d results in vector database", len(searchResults))
 
-			// Construct the answer from the search results
-			log.Println("Constructing answer from search results...")
-			var answer strings.Builder
-			answer.WriteString("Here are some relevant messages:\n")
+			// Generate answer using OpenAI
+			log.Println("Generating answer using OpenAI...")
+			aiAnswer, err := generateOpenAIAnswer(query, searchResults)
+
+			// Prepare the response with both AI answer and relevant messages
+			var fullResponse strings.Builder
+
+			// Add AI-generated answer if available
+			if err != nil {
+				log.Printf("Error generating answer with OpenAI: %v", err)
+				fullResponse.WriteString("I couldn't generate an AI answer due to an error.\n\n")
+			} else {
+				log.Println("Successfully generated AI answer")
+				fullResponse.WriteString(aiAnswer)
+				fullResponse.WriteString("\n\n")
+			}
+
+			// Add top 5 relevant messages
+			fullResponse.WriteString("Here are some relevant messages:\n")
+			messageCount := 0
 			for i, result := range searchResults {
+				if i >= 5 { // Limit to top 5 results
+					break
+				}
+
 				payload, ok := result["payload"].(map[string]interface{})
 				if !ok {
 					log.Printf("Error: payload is not a map")
 					continue
 				}
+
 				text, ok := payload["text"].(string)
 				if !ok {
 					log.Printf("Error: text is not a string")
 					continue
 				}
+
+				username, ok := payload["username"].(string)
+				if !ok {
+					username = "Unknown"
+				}
+
 				score, ok := result["score"].(float64)
 				if !ok {
-					log.Printf("Error: score is not a float64")
 					score = 0
 				}
-				log.Printf("Result %d: Score=%f, Text='%s'", i+1, score, text)
-				answer.WriteString(fmt.Sprintf("- %s\n", text))
+
+				log.Printf("Result %d: Score=%f, User=%s, Text='%s'", i+1, score, username, text)
+				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, text))
+				messageCount++
 			}
 
-			// Send the answer
-			log.Println("Sending answer to user...")
-			return c.Send(answer.String())
+			if messageCount == 0 {
+				fullResponse.WriteString("No relevant messages found.\n")
+			}
+
+			// Send the combined answer
+			log.Println("Sending combined response to user...")
+			return c.Send(fullResponse.String())
 		}
 
 		// Calculate embedding for the message
