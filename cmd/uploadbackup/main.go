@@ -20,13 +20,71 @@ type TelegramBackup struct {
 }
 
 type Message struct {
-	ID           int64  `json:"id"`
-	Type         string `json:"type"`
-	Date         string `json:"date"`
-	DateUnixtime string `json:"date_unixtime"`
-	From         string `json:"from"`
-	FromID       string `json:"from_id"`
-	Text         string `json:"text"`
+	ID           int64           `json:"id"`
+	Type         string          `json:"type"`
+	Date         string          `json:"date"`
+	DateUnixtime string          `json:"date_unixtime"`
+	From         string          `json:"from,omitempty"`
+	FromID       string          `json:"from_id,omitempty"`
+	Text         json.RawMessage `json:"text"`
+	Actor        string          `json:"actor,omitempty"`
+	ActorID      string          `json:"actor_id,omitempty"`
+	Action       string          `json:"action,omitempty"`
+}
+
+// GetText extracts text from the message, handling both string and array formats
+func (m *Message) GetText() (string, error) {
+	// If Text is empty, return empty string
+	if len(m.Text) == 0 {
+		return "", nil
+	}
+
+	// Try to unmarshal as string first
+	var textStr string
+	err := json.Unmarshal(m.Text, &textStr)
+	if err == nil {
+		return textStr, nil
+	}
+
+	// Log the raw text for debugging
+	fmt.Printf("Message ID %d has non-string text: %s\n", m.ID, string(m.Text))
+
+	// Try to unmarshal as a generic JSON value to see what we're dealing with
+	var rawValue interface{}
+	if err := json.Unmarshal(m.Text, &rawValue); err == nil {
+		fmt.Printf("Message ID %d text type: %T\n", m.ID, rawValue)
+	}
+
+	// If that fails, try to unmarshal as array of text entities
+	var textArray []map[string]interface{}
+	err = json.Unmarshal(m.Text, &textArray)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse text field (ID: %d): %v, raw text: %s",
+			m.ID, err, string(m.Text))
+	}
+
+	// Extract text from array with detailed logging
+	var result string
+	fmt.Printf("Message ID %d has text array with %d entities\n", m.ID, len(textArray))
+	for i, entity := range textArray {
+		fmt.Printf("  Entity %d keys: %v\n", i, getMapKeys(entity))
+		if text, ok := entity["text"].(string); ok {
+			result += text
+			fmt.Printf("  Entity %d text: %s\n", i, text)
+		} else if text, exists := entity["text"]; exists {
+			fmt.Printf("  Entity %d has text of type %T: %v\n", i, text, text)
+		}
+	}
+	return result, nil
+}
+
+// Helper function to get map keys
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 type EmbeddingResponse struct {
@@ -55,7 +113,32 @@ func main() {
 	var backup TelegramBackup
 	err = json.Unmarshal(byteValue, &backup)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Error unmarshaling JSON: %v\n", err)
+
+		// Try to unmarshal into a map to see the structure
+		var rawData map[string]interface{}
+		if jsonErr := json.Unmarshal(byteValue, &rawData); jsonErr == nil {
+			if messages, ok := rawData["messages"].([]interface{}); ok {
+				// Find problematic messages
+				for i, msg := range messages {
+					if msgMap, ok := msg.(map[string]interface{}); ok {
+						if text, exists := msgMap["text"]; exists {
+							switch text.(type) {
+							case string:
+								// This is fine
+							case []interface{}:
+								fmt.Printf("Found array text at message index %d, ID: %v\n",
+									i, msgMap["id"])
+							default:
+								fmt.Printf("Found unusual text type at message index %d, type: %T\n",
+									i, text)
+							}
+						}
+					}
+				}
+			}
+		}
+
 		return
 	}
 
@@ -73,25 +156,33 @@ func main() {
 	// 3. Iterate through messages and extract data
 	for _, message := range backup.Messages {
 		if message.Type == "message" {
-			text := message.Text
+			// Extract text using our new method
+			text, err := message.GetText()
+			if err != nil {
+				fmt.Printf("Error extracting text from message ID %d: %v\n", message.ID, err)
+				continue
+			}
+
 			username := message.From
+
+			// Debug output to help troubleshoot
+			//fmt.Printf("Processing message ID %d from %s: %s\n", message.ID, username, text)
 
 			// 4. Call the embedding service
 			embedding, err := getEmbedding(text)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Error getting embedding for message ID %d: %v\n", message.ID, err)
 				continue
 			}
 
 			// 5. Save to Qdrant
 			err = saveToQdrant(message.ID, text, username, embedding)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Error saving to Qdrant for message ID %d: %v\n", message.ID, err)
 				continue
 			}
 
-			//fmt.Printf("Saving to Qdrant: User=%s: %v\n", username, embedding)
-			//fmt.Printf("Saved message from %s: %s\n", username, text)
+			fmt.Printf("Successfully processed message ID %d\n", message.ID)
 		}
 		bar.Increment()
 	}
