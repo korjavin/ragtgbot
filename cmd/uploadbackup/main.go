@@ -93,7 +93,10 @@ type EmbeddingResponse struct {
 }
 
 const (
-	maxChunkSize = 3072 // Maximum characters in a chunk
+	maxChunkSize       = 3072 // Maximum characters in a chunk (old value, keeping for reference)
+	softLimitChunkSize = 2000 // Soft limit for chunk size
+	hardLimitChunkSize = 4000 // Hard limit for chunk size
+	timeProximityLimit = 3600 // Time proximity limit in seconds (1 hour)
 )
 
 func main() {
@@ -161,6 +164,7 @@ func main() {
 	// Initialize message buffer
 	msgBuffer := buffer.NewMessageBuffer()
 	lastMessageID := int64(0)
+	var lastTimestamp int64 = 0
 
 	// 3. Iterate through messages and extract data
 	for _, message := range backup.Messages {
@@ -172,19 +176,45 @@ func main() {
 				continue
 			}
 
+			// Skip messages without text
+			if text == "" {
+				bar.Increment()
+				continue
+			}
+
 			username := message.From
 			lastMessageID = message.ID
 
+			// Parse message timestamp
+			currentTimestamp, err := parseTimestamp(message.DateUnixtime)
+			if err != nil {
+				fmt.Printf("Error parsing timestamp for message ID %d: %v\n", message.ID, err)
+				currentTimestamp = 0
+			}
+
+			// Process buffer based on size and time proximity
+			if !msgBuffer.IsEmpty() {
+				// Check if we need to process the buffer
+				timeProximity := true
+				if lastTimestamp > 0 && currentTimestamp > 0 {
+					timeProximity = (currentTimestamp - lastTimestamp) <= timeProximityLimit
+				}
+
+				// Process buffer if:
+				// 1. Buffer exceeds hard limit, or
+				// 2. Buffer exceeds soft limit AND messages are not close in time
+				if msgBuffer.Size >= hardLimitChunkSize ||
+					(msgBuffer.Size >= softLimitChunkSize && !timeProximity) {
+					if err := processBuffer(msgBuffer, lastMessageID); err != nil {
+						fmt.Printf("Error processing buffer at message ID %d: %v\n", lastMessageID, err)
+					}
+					msgBuffer.Clear()
+				}
+			}
+
 			// Add message to buffer
 			msgBuffer.Add(username, text)
-
-			// Process buffer if it exceeds max size
-			if msgBuffer.Size >= maxChunkSize {
-				if err := processBuffer(msgBuffer, lastMessageID); err != nil {
-					fmt.Printf("Error processing buffer at message ID %d: %v\n", lastMessageID, err)
-				}
-				msgBuffer.Clear()
-			}
+			lastTimestamp = currentTimestamp
 		}
 		bar.Increment()
 	}
@@ -197,6 +227,13 @@ func main() {
 	}
 
 	fmt.Println("Finished processing Telegram backup")
+}
+
+// parseTimestamp converts a Unix timestamp string to int64
+func parseTimestamp(timestampStr string) (int64, error) {
+	var timestamp int64
+	_, err := fmt.Sscanf(timestampStr, "%d", &timestamp)
+	return timestamp, err
 }
 
 func processBuffer(buffer *buffer.MessageBuffer, messageID int64) error {
