@@ -3,13 +3,15 @@ module github.com/korjavin/ragtgbot
 go 1.23.2
 
 require (
+	github.com/cheggaaa/pb/v3 v3.1.7
 	github.com/qdrant/go-client v1.13.0
+	github.com/sashabaranov/go-openai v1.38.1
 	google.golang.org/grpc v1.66.0
+	gopkg.in/telebot.v3 v3.3.8
 )
 
 require (
 	github.com/VividCortex/ewma v1.2.0 // indirect
-	github.com/cheggaaa/pb/v3 v3.1.7 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
