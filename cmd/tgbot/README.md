@@ -16,6 +16,7 @@ The Telegram RAG Bot is designed to:
 1. **Message Storage**: When the bot receives a regular message, it:
    - Generates embeddings for the message text using an embedding service
    - Stores the message text, username, and embedding in Qdrant (a vector database)
+   - Ignores its own messages to prevent redundant storage
 
 2. **Query Processing**: When the bot is mentioned with a query, it:
    - Extracts the query from the message

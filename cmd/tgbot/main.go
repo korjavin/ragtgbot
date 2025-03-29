@@ -722,6 +722,12 @@ func main() {
 			return c.Send(fullResponse.String())
 		}
 
+		// Check if the message is from the bot itself
+		if c.Sender().Username == b.Me.Username {
+			log.Println("Ignoring bot's own message, not storing in vector database")
+			return nil
+		}
+
 		// Calculate embedding for the message
 		log.Println("Processing regular message for storage...")
 		log.Println("Generating embeddings for message...")

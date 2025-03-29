@@ -49,6 +49,7 @@ A utility tool that:
 1. **Message Storage**:
    - When the bot receives a regular message, it generates embeddings for the text
    - The message text, username, and embeddings are stored in Qdrant
+   - The bot intelligently ignores its own messages to prevent redundant storage
 
 2. **Query Processing**:
    - When the bot is mentioned with a query, it generates embeddings for the query
