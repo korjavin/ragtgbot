@@ -1,0 +1,128 @@
+{
+ "name": "TestCase1",
+ "type": "private_group",
+ "id": 4696915168,
+ "messages": [
+  {
+   "id": 703440,
+   "type": "service",
+   "date": "2025-04-15T09:30:00",
+   "date_unixtime": "1744962600",
+   "actor": "user1",
+   "actor_id": "user87654321",
+   "action": "create_group",
+   "title": "TestCase1",
+   "members": [
+    "user1",
+    "user2",
+    "user3"
+   ],
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 703441,
+   "type": "message",
+   "date": "2025-04-15T09:30:15",
+   "date_unixtime": "1744962615",
+   "from": "user1",
+   "from_id": "user87654321",
+   "text": "Hello everyone!",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Hello everyone!"
+    }
+   ]
+  },
+  {
+   "id": 703442,
+   "type": "message",
+   "date": "2025-04-15T09:30:20",
+   "date_unixtime": "1744962620",
+   "from": "user2",
+   "from_id": "user23456789",
+   "text": "Hi there!",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Hi there!"
+    }
+   ]
+  },
+  {
+   "id": 703443,
+   "type": "message",
+   "date": "2025-04-15T09:31:45",
+   "date_unixtime": "1744962705",
+   "from": "user3",
+   "from_id": "user34567890",
+   "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi at nunc sed metus faucibus feugiat. Nulla facilisi. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Cras eget leo nec dolor ultrices pharetra. Pellentesque laoreet eros vitae nisl vestibulum, a iaculis eros tempor. Fusce mattis, nisi ac consectetur pulvinar, sapien mauris convallis nisl, nec pharetra urna erat sit amet augue. Curabitur convallis risus ut neque ultrices, sit amet fermentum lectus lobortis. Phasellus eu mauris in velit facilisis elementum. Sed faucibus aliquam risus, vel varius quam tempor eget. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Sed fringilla mi eget justo suscipit, et auctor lectus scelerisque. Cras sed gravida leo. Curabitur hendrerit, orci ut ultrices facilisis, justo justo mollis massa, eget varius neque turpis a nisi. Quisque euismod risus quis turpis lacinia, vel cursus tortor pretium. Nulla facilisi. Maecenas maximus massa elit, in elementum arcu vulputate vitae.",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi at nunc sed metus faucibus feugiat. Nulla facilisi. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Cras eget leo nec dolor ultrices pharetra. Pellentesque laoreet eros vitae nisl vestibulum, a iaculis eros tempor. Fusce mattis, nisi ac consectetur pulvinar, sapien mauris convallis nisl, nec pharetra urna erat sit amet augue. Curabitur convallis risus ut neque ultrices, sit amet fermentum lectus lobortis. Phasellus eu mauris in velit facilisis elementum. Sed faucibus aliquam risus, vel varius quam tempor eget. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Sed fringilla mi eget justo suscipit, et auctor lectus scelerisque. Cras sed gravida leo. Curabitur hendrerit, orci ut ultrices facilisis, justo justo mollis massa, eget varius neque turpis a nisi. Quisque euismod risus quis turpis lacinia, vel cursus tortor pretium. Nulla facilisi. Maecenas maximus massa elit, in elementum arcu vulputate vitae."
+    }
+   ]
+  },
+  {
+   "id": 703444,
+   "type": "message",
+   "date": "2025-04-15T09:32:00",
+   "date_unixtime": "1744962720",
+   "from": "user1",
+   "from_id": "user87654321",
+   "photo": "(File not included. Change data exporting settings to download.)",
+   "photo_file_size": 235621,
+   "width": 1200,
+   "height": 800,
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 703445,
+   "type": "message",
+   "date": "2025-04-15T12:45:30",
+   "date_unixtime": "1744974330",
+   "from": "user2",
+   "from_id": "user23456789",
+   "text": "OK",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "OK"
+    }
+   ]
+  },
+  {
+   "id": 703446,
+   "type": "message",
+   "date": "2025-04-16T08:15:22",
+   "date_unixtime": "1745044522",
+   "from": "user3",
+   "from_id": "user34567890",
+   "text": "Hello again after some time!",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Hello again after some time!"
+    }
+   ]
+  },
+  {
+   "id": 703447,
+   "type": "message",
+   "date": "2025-04-16T08:15:45",
+   "date_unixtime": "1745044545",
+   "from": "user3",
+   "from_id": "user34567890",
+   "text": "Just a quick follow up message.",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Just a quick follow up message."
+    }
+   ]
+  }
+ ]
+}

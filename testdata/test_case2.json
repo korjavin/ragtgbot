@@ -1,0 +1,140 @@
+{
+ "name": "TestCase2",
+ "type": "private_group",
+ "id": 4696915169,
+ "messages": [
+  {
+   "id": 803440,
+   "type": "service",
+   "date": "2025-05-10T14:20:00",
+   "date_unixtime": "1747144800",
+   "actor": "mediauser",
+   "actor_id": "user98765432",
+   "action": "create_group",
+   "title": "TestCase2",
+   "members": [
+    "mediauser",
+    "textuser"
+   ],
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 803441,
+   "type": "message",
+   "date": "2025-05-10T14:21:05",
+   "date_unixtime": "1747144865",
+   "from": "mediauser",
+   "from_id": "user98765432",
+   "text": "I'll share some media files",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "I'll share some media files"
+    }
+   ]
+  },
+  {
+   "id": 803442,
+   "type": "message",
+   "date": "2025-05-10T14:21:30",
+   "date_unixtime": "1747144890",
+   "from": "mediauser",
+   "from_id": "user98765432",
+   "photo": "(File not included. Change data exporting settings to download.)",
+   "photo_file_size": 183349,
+   "width": 987,
+   "height": 1280,
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 803443,
+   "type": "message",
+   "date": "2025-05-10T14:21:40",
+   "date_unixtime": "1747144900",
+   "from": "mediauser",
+   "from_id": "user98765432",
+   "photo": "(File not included. Change data exporting settings to download.)",
+   "photo_file_size": 256789,
+   "width": 1920,
+   "height": 1080,
+   "text": "Check this out!",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Check this out!"
+    }
+   ]
+  },
+  {
+   "id": 803444,
+   "type": "message",
+   "date": "2025-05-10T14:22:15",
+   "date_unixtime": "1747144935",
+   "from": "mediauser",
+   "from_id": "user98765432",
+   "file": "(File not included. Change data exporting settings to download.)",
+   "file_name": "document.pdf",
+   "file_size": 4521678,
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 803445,
+   "type": "message",
+   "date": "2025-05-10T14:25:00",
+   "date_unixtime": "1747145100",
+   "from": "textuser",
+   "from_id": "user12345678",
+   "text": "Thanks for sharing!",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Thanks for sharing!"
+    }
+   ]
+  },
+  {
+   "id": 803446,
+   "type": "message",
+   "date": "2025-05-10T14:30:22",
+   "date_unixtime": "1747145422",
+   "from": "mediauser",
+   "from_id": "user98765432",
+   "sticker": "(File not included. Change data exporting settings to download.)",
+   "width": 512,
+   "height": 512,
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 803447,
+   "type": "message",
+   "date": "2025-05-10T14:35:10",
+   "date_unixtime": "1747145710",
+   "from": "mediauser",
+   "from_id": "user98765432",
+   "voice_message": "(File not included. Change data exporting settings to download.)",
+   "voice_message_duration": 12,
+   "voice_message_file_size": 56234,
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 803448,
+   "type": "message",
+   "date": "2025-05-10T18:40:00",
+   "date_unixtime": "1747160400",
+   "from": "textuser",
+   "from_id": "user12345678",
+   "text": "Let's talk later",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Let's talk later"
+    }
+   ]
+  }
+ ]
+}
