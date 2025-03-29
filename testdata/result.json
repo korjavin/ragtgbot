@@ -1,0 +1,83 @@
+{
+ "name": "TestRag",
+ "type": "private_group",
+ "id": 4696915167,
+ "messages": [
+  {
+   "id": 603440,
+   "type": "service",
+   "date": "2025-03-29T15:10:56",
+   "date_unixtime": "1743257456",
+   "actor": "verymuchuser",
+   "actor_id": "user12345678",
+   "action": "create_group",
+   "title": "TestRag",
+   "members": [
+    "verymuchuser",
+    "anotheruser"
+   ],
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 603441,
+   "type": "message",
+   "date": "2025-03-29T15:11:08",
+   "date_unixtime": "1743257468",
+   "from": "verymuchuser",
+   "from_id": "user12345678",
+   "text": "Hi, how are you?",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Hi, how are you?"
+    }
+   ]
+  },
+  {
+   "id": 603442,
+   "type": "message",
+   "date": "2025-03-29T15:11:40",
+   "date_unixtime": "1743257500",
+   "from": "verymuchuser",
+   "from_id": "user12345678",
+   "text": "Did you know that I bought that device to feed pigeons?",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Did you know that I bought that device to feed pigeons?"
+    }
+   ]
+  },
+  {
+   "id": 603443,
+   "type": "message",
+   "date": "2025-03-29T15:11:50",
+   "date_unixtime": "1743257510",
+   "from": "verymuchuser",
+   "from_id": "user12345678",
+   "text": "Что то на русском.",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Что то на русском."
+    }
+   ]
+  },
+  {
+   "id": 603444,
+   "type": "message",
+   "date": "2025-03-29T15:14:34",
+   "date_unixtime": "1743257674",
+   "from": "verymuchuser",
+   "from_id": "user12345678",
+   "text": "Я ем пельмени, но без особого удовольствия.",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Я ем пельмени, но без особого удовольствия."
+    }
+   ]
+  }
+ ]
+}
