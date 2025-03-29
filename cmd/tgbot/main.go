@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -48,6 +49,7 @@ const (
 	openaiAPIURL                   = "https://api.openai.com/v1/chat/completions" // OpenAI API URL
 	openaiModel                    = "gpt-4o-mini"                                // OpenAI model to use
 	vectorSearchLimit              = 10                                           // Number of similar messages to retrieve
+	restrictedAccessMessage        = "Sorry, this bot is restricted to answer outside of specific groups, but it's open-source and self-hosted, you can always host your own instance of it at https://github.com/korjavin/ragtgbot"
 )
 
 // Global variables for service addresses
@@ -568,6 +570,21 @@ func createQdrantCollection(collectionName string) error {
 	return nil
 }
 
+// Function to check if a chat is allowed
+func isAllowedChat(chatID int64, allowedGroups []int64) bool {
+	// If no restrictions set, allow all
+	if len(allowedGroups) == 0 {
+		return true
+	}
+
+	for _, groupID := range allowedGroups {
+		if chatID == groupID {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	log.Println("Starting Telegram RAG bot...")
 
@@ -602,6 +619,23 @@ func main() {
 		log.Printf("Using Qdrant service at: %s", qdrantServiceAddress)
 	}
 
+	// Parse allowed groups
+	var allowedGroups []int64
+	if groupsList := os.Getenv("TG_GROUP_LIST"); groupsList != "" {
+		groups := strings.Split(groupsList, ",")
+		for _, group := range groups {
+			if groupID, err := strconv.ParseInt(strings.TrimSpace(group), 10, 64); err == nil {
+				allowedGroups = append(allowedGroups, groupID)
+				log.Printf("Added allowed group ID: %d", groupID)
+			} else {
+				log.Printf("Warning: invalid group ID in TG_GROUP_LIST: %s", group)
+			}
+		}
+		log.Printf("Restricted to %d groups", len(allowedGroups))
+	} else {
+		log.Println("No group restrictions set, bot will respond in all chats")
+	}
+
 	// Create Qdrant collection if it doesn't exist
 	err := createQdrantCollection(collectionName)
 	if err != nil {
@@ -633,7 +667,16 @@ func main() {
 	// Message handler
 	log.Println("Setting up message handler...")
 	b.Handle(tele.OnText, func(c tele.Context) error {
-		log.Printf("Received message: '%s' from %s", c.Text(), c.Sender().Username)
+		log.Printf("Received message in chat %d: '%s' from %s", c.Chat().ID, c.Text(), c.Sender().Username)
+
+		// Check if this chat is allowed
+		if !isAllowedChat(c.Chat().ID, allowedGroups) {
+			log.Printf("Message from restricted chat %d, ignoring", c.Chat().ID)
+			if strings.Contains(c.Text(), "@"+b.Me.Username) {
+				return c.Send(restrictedAccessMessage)
+			}
+			return nil
+		}
 
 		// Check if the bot is mentioned
 		if strings.Contains(c.Text(), "@"+b.Me.Username) {

@@ -71,6 +71,17 @@ A utility tool that:
 - Telegram Bot Token (from BotFather)
 - OpenAI API Key
 
+### Environment Variables
+
+Required:
+- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token from BotFather
+- `OPENAI_API_KEY`: Your OpenAI API key
+
+Optional:
+- `TG_GROUP_LIST`: Comma-separated list of allowed group/chat IDs
+- `EMBEDDING_SERVICE_ADDRESS`: Custom address for embedding service
+- `QDRANT_SERVICE_ADDRESS`: Custom address for Qdrant service
+
 ### Running with Docker Compose
 
 1. Clone the repository:
@@ -128,6 +139,32 @@ The bot uses the following configuration options:
 - **Collection Name**: Name of the collection in Qdrant (default: "chat_history")
 - **OpenAI Model**: Model to use for generating responses (default: "gpt-4o-mini")
 - **Vector Search Limit**: Number of similar messages to retrieve (default: 10)
+
+## Security
+
+The bot can be restricted to specific Telegram groups/chats:
+
+- Set `TG_GROUP_LIST` environment variable with a comma-separated list of allowed group/chat IDs
+- Example: `export TG_GROUP_LIST="-1001234567890,-1009876543210"`
+- When restricted, the bot will:
+  - Only store and process messages from allowed groups
+  - Respond with an explanation message in other chats
+  - Continue to ignore messages that don't mention it
+- If `TG_GROUP_LIST` is not set, the bot will work in all chats
+
+To find your group ID:
+1. Add the bot to your group
+2. Send a message in the group
+3. Check the bot's logs for the chat ID number
+4. Use this ID in the TG_GROUP_LIST
+
+Example docker-compose configuration:
+```yaml
+services:
+  tgbot:
+    environment:
+      - TG_GROUP_LIST=-1001234567890,-1009876543210
+```
 
 ## Usage
 
