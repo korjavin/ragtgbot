@@ -1,4 +1,4 @@
-pdoversion: "3.9"
+version: "3.9"
 services:
   qdrant:
     image: qdrant/qdrant:latest
@@ -9,7 +9,9 @@ services:
       - qdrant_data:/qdrant/storage
 
   embedding_service:
-    image: ghcr.io/korjavin/ragtgbot:latest
+    build:
+      context: ./embedding_service
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     restart: always
