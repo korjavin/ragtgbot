@@ -95,7 +95,7 @@ Optional:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ragtgbot.git
+   git clone https://github.com/korjavin/ragtgbot.git
    cd ragtgbot
    ```
 
@@ -194,8 +194,8 @@ services:
 
 The project provides Docker images for all components:
 
-- **Telegram Bot**: `ghcr.io/yourusername/ragtgbot-tgbot:latest`
-- **Embedding Service**: `ghcr.io/yourusername/ragtgbot-embedding-service:latest`
+- **Telegram Bot**: `ghcr.io/korjavin/ragtgbot-tgbot:latest`
+- **Embedding Service**: `ghcr.io/korjavin/ragtgbot-embedding-service:latest`
 
 ## Development
 
@@ -217,4 +217,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License 

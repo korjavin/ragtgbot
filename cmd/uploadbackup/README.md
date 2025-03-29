@@ -8,4 +8,4 @@ This tool parses a Telegram group backup in JSON format, extracts the text from 
 2.  Start the Qdrant database and the embedding service using `docker-compose up`.
 3.  Run the `uploadbackup` tool: `go run cmd/uploadbackup/main.go`.
 
-The tool will read the JSON file, call the embedding service for each message, and save the data to the Qdrant database in the `chat_history` collection.
+The tool will read the JSON file, group messages by time/size, and save the data to the Qdrant database in the `chat_history` collection.
