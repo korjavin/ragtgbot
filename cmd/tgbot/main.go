@@ -157,16 +157,19 @@ func searchQdrant(embedding []float32, limit int) ([]map[string]interface{}, err
 		embeddingInterface[i] = v
 	}
 
-	requestBody, err := json.Marshal(map[string]interface{}{
-		"vector": map[string]interface{}{
-			"data": embeddingInterface,
-		},
-		"limit": limit,
-	})
+	searchRequest := map[string]interface{}{
+		"vector": embeddingInterface,
+		"limit":  limit,
+	}
+
+	requestBody, err := json.Marshal(searchRequest)
 	if err != nil {
 		log.Printf("Error marshaling search request: %v", err)
 		return nil, err
 	}
+
+	// Log the request body for debugging
+	log.Printf("Search request body: %s", string(requestBody))
 
 	req, err := http.NewRequest(http.MethodPost, qdrantURL, bytes.NewBuffer(requestBody))
 	if err != nil {
@@ -224,6 +227,80 @@ func searchQdrant(embedding []float32, limit int) ([]map[string]interface{}, err
 	return results, nil
 }
 
+// Function to get collection info
+func getCollectionInfo(collectionName string) (map[string]interface{}, error) {
+	log.Printf("Getting info for collection '%s'...", collectionName)
+
+	// Get collection info
+	qdrantURL := fmt.Sprintf("%s/collections/%s", qdrantServiceAddress, collectionName)
+	resp, err := http.Get(qdrantURL)
+	if err != nil {
+		log.Printf("Error getting collection info: %v", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body: %v", err)
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Error response from Qdrant: %s", string(respBody))
+		return nil, fmt.Errorf("error response from Qdrant: %s", string(respBody))
+	}
+
+	// Parse the response
+	var collectionInfo map[string]interface{}
+	err = json.Unmarshal(respBody, &collectionInfo)
+	if err != nil {
+		log.Printf("Error unmarshaling collection info: %v", err)
+		return nil, err
+	}
+
+	// Log the collection info
+	infoBytes, _ := json.MarshalIndent(collectionInfo, "", "  ")
+	log.Printf("Collection info: %s", string(infoBytes))
+
+	return collectionInfo, nil
+}
+
+// Function to delete a collection
+func deleteQdrantCollection(collectionName string) error {
+	log.Printf("Deleting collection '%s'...", collectionName)
+
+	// Delete collection
+	qdrantURL := fmt.Sprintf("%s/collections/%s", qdrantServiceAddress, collectionName)
+	req, err := http.NewRequest(http.MethodDelete, qdrantURL, nil)
+	if err != nil {
+		log.Printf("Error creating HTTP request: %v", err)
+		return err
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error sending HTTP request: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body: %v", err)
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Error response from Qdrant: %s", string(respBody))
+		return fmt.Errorf("error response from Qdrant: %s", string(respBody))
+	}
+
+	log.Printf("Collection '%s' deleted successfully", collectionName)
+	return nil
+}
+
 // Function to check if a collection exists and create it if it doesn't
 func createQdrantCollection(collectionName string) error {
 	log.Printf("Checking if collection '%s' exists...", collectionName)
@@ -239,14 +316,50 @@ func createQdrantCollection(collectionName string) error {
 
 	if resp.StatusCode == http.StatusOK {
 		log.Printf("Collection '%s' already exists", collectionName)
-		return nil
+
+		// Get collection info
+		collectionInfo, err := getCollectionInfo(collectionName)
+		if err != nil {
+			log.Printf("Error getting collection info: %v", err)
+		}
+
+		// Check if the collection has vectors configured
+		result, ok := collectionInfo["result"].(map[string]interface{})
+		if !ok {
+			log.Printf("Error: result field is not a map")
+		} else {
+			config, ok := result["config"].(map[string]interface{})
+			if !ok {
+				log.Printf("Error: config field is not a map")
+			} else {
+				params, ok := config["params"].(map[string]interface{})
+				if !ok {
+					log.Printf("Error: params field is not a map")
+				} else {
+					vectors, ok := params["vectors"].(map[string]interface{})
+					if !ok || len(vectors) == 0 {
+						log.Printf("Vectors are not configured in this collection, recreating...")
+
+						// Delete the collection
+						err = deleteQdrantCollection(collectionName)
+						if err != nil {
+							log.Printf("Error deleting collection: %v", err)
+							return err
+						}
+					} else {
+						log.Printf("Vectors configuration: %v", vectors)
+						return nil
+					}
+				}
+			}
+		}
 	}
 
 	log.Printf("Collection '%s' does not exist, creating...", collectionName)
 
 	// Create collection
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"vectors_config": map[string]interface{}{
+		"vectors": map[string]interface{}{
 			"size":     384, // Embedding size
 			"distance": "Cosine",
 		},
