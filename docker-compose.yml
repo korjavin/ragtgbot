@@ -31,6 +31,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - EMBEDDING_SERVICE_ADDRESS=http://embedding_service:8000/embeddings
       - QDRANT_SERVICE_ADDRESS=http://qdrant:6333
+      - TG_GROUP_LISTS=${TG_GROUP_LISTS}
 
 volumes:
   qdrant_data:
