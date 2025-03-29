@@ -48,7 +48,7 @@ const (
 	collectionName                 = "chat_history"
 	openaiAPIURL                   = "https://api.openai.com/v1/chat/completions" // OpenAI API URL
 	openaiModel                    = "gpt-4o-mini"                                // OpenAI model to use
-	vectorSearchLimit              = 10                                           // Number of similar messages to retrieve
+	vectorSearchLimit              = 5                                            // Number of similar messages to retrieve
 	restrictedAccessMessage        = "Sorry, this bot is restricted to answer outside of specific groups, but it's open-source and self-hosted, you can always host your own instance of it at https://github.com/korjavin/ragtgbot"
 )
 
@@ -725,7 +725,7 @@ func main() {
 			fullResponse.WriteString("Here are some relevant messages:\n")
 			messageCount := 0
 			for i, result := range searchResults {
-				if i >= 5 { // Limit to top 5 results
+				if i >= 1 { // Limit to top 5 results
 					break
 				}
 
