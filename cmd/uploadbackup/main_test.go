@@ -66,7 +66,8 @@ func setupTestBuffer(t *testing.T) func([]Message) []int64 {
 					// 2. Adding this message would exceed soft limit AND messages are not close in time
 					if potentialSize >= hardLimitChunkSize ||
 						(potentialSize >= softLimitChunkSize && !timeProximity) {
-						processBufferFn(msgBuffer, lastMessageID)
+						err := processBufferFn(msgBuffer, lastMessageID)
+						assert.NoError(t, err)
 						msgBuffer.Clear()
 					}
 				}
@@ -80,7 +81,8 @@ func setupTestBuffer(t *testing.T) func([]Message) []int64 {
 
 		// Process remaining messages in buffer
 		if !msgBuffer.IsEmpty() {
-			processBufferFn(msgBuffer, lastMessageID)
+			err := processBufferFn(msgBuffer, lastMessageID)
+			assert.NoError(t, err)
 		}
 
 		return processedChunks
