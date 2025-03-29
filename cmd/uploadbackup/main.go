@@ -91,6 +91,32 @@ type EmbeddingResponse struct {
 	Embedding []float64 `json:"embedding"`
 }
 
+const (
+	maxChunkSize = 3072 // Maximum characters in a chunk
+)
+
+type messageBuffer struct {
+	text     string
+	username string
+	size     int
+}
+
+func (b *messageBuffer) add(username, text string) {
+	if b.text == "" {
+		b.username = username // Set username from first message
+		b.text = fmt.Sprintf("%s: %s", username, text)
+	} else {
+		b.text += fmt.Sprintf("\n%s: %s", username, text)
+	}
+	b.size += len(text)
+}
+
+func (b *messageBuffer) clear() {
+	b.text = ""
+	b.username = ""
+	b.size = 0
+}
+
 func main() {
 	// Get filename from arguments
 	if len(os.Args) != 2 {
@@ -153,6 +179,10 @@ func main() {
 	bar := pb.StartNew(len(backup.Messages))
 	defer bar.Finish()
 
+	// Initialize message buffer
+	buffer := &messageBuffer{}
+	lastMessageID := int64(0)
+
 	// 3. Iterate through messages and extract data
 	for _, message := range backup.Messages {
 		if message.Type == "message" {
@@ -164,30 +194,46 @@ func main() {
 			}
 
 			username := message.From
+			lastMessageID = message.ID
 
-			// Debug output to help troubleshoot
-			//fmt.Printf("Processing message ID %d from %s: %s\n", message.ID, username, text)
+			// Add message to buffer
+			buffer.add(username, text)
 
-			// 4. Call the embedding service
-			embedding, err := getEmbedding(text)
-			if err != nil {
-				fmt.Printf("Error getting embedding for message ID %d: %v\n", message.ID, err)
-				continue
+			// Process buffer if it exceeds max size
+			if buffer.size >= maxChunkSize {
+				if err := processBuffer(buffer, lastMessageID); err != nil {
+					fmt.Printf("Error processing buffer at message ID %d: %v\n", lastMessageID, err)
+				}
+				buffer.clear()
 			}
-
-			// 5. Save to Qdrant
-			err = saveToQdrant(message.ID, text, username, embedding)
-			if err != nil {
-				fmt.Printf("Error saving to Qdrant for message ID %d: %v\n", message.ID, err)
-				continue
-			}
-
-			//fmt.Printf("Successfully processed message ID %d\n", message.ID)
 		}
 		bar.Increment()
 	}
 
+	// Process remaining messages in buffer
+	if buffer.size > 0 {
+		if err := processBuffer(buffer, lastMessageID); err != nil {
+			fmt.Printf("Error processing final buffer: %v\n", err)
+		}
+	}
+
 	fmt.Println("Finished processing Telegram backup")
+}
+
+func processBuffer(buffer *messageBuffer, messageID int64) error {
+	// Get embedding for combined text
+	embedding, err := getEmbedding(buffer.text)
+	if err != nil {
+		return fmt.Errorf("error getting embedding: %v", err)
+	}
+
+	// Save to Qdrant
+	err = saveToQdrant(messageID, buffer.text, buffer.username, embedding)
+	if err != nil {
+		return fmt.Errorf("error saving to Qdrant: %v", err)
+	}
+
+	return nil
 }
 
 func getEmbedding(text string) ([]float64, error) {

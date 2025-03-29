@@ -752,6 +752,14 @@ func main() {
 				}
 
 				log.Printf("Result %d: Score=%f, User=%s, Text='%s'", i+1, score, username, text)
+
+				// Truncate text to first 50 characters if longer
+				displayText := text
+				if len(displayText) > 50 {
+					displayText = displayText[:50] + "..."
+				}
+
+				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, displayText))
 				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, text))
 				messageCount++
 			}
