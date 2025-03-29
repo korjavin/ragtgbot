@@ -1,26 +1,21 @@
-package main
+package tests
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"strings"
-	"syscall"
+	"testing"
 	"time"
-
-	tele "gopkg.in/telebot.v3"
 )
 
 const (
 	embeddingServiceAddress = "http://localhost:8000/embeddings" // Address of the embedding service
 	qdrantServiceAddress    = "http://localhost:6333"            // Address of the Qdrant HTTP API
-	collectionName          = "chat_history"
+	testCollectionName      = "test_chat_history"                // Test collection name
 )
 
 type TextList struct {
@@ -81,7 +76,7 @@ func getEmbeddings(texts []string) ([]float32, error) {
 }
 
 // Function to save a message to Qdrant using HTTP API
-func saveToQdrant(messageID int64, text string, username string, embedding []float32) error {
+func saveToQdrant(collectionName string, messageID int64, text string, username string, embedding []float32) error {
 	log.Printf("Saving message to Qdrant with ID: %d", messageID)
 
 	// Qdrant saving logic using HTTP API
@@ -144,7 +139,7 @@ func saveToQdrant(messageID int64, text string, username string, embedding []flo
 }
 
 // Function to search for similar messages in Qdrant using HTTP API
-func searchQdrant(embedding []float32, limit int) ([]map[string]interface{}, error) {
+func searchQdrant(collectionName string, embedding []float32, limit int) ([]map[string]interface{}, error) {
 	log.Printf("Searching Qdrant for similar messages with limit: %d", limit)
 
 	// Qdrant search logic using HTTP API
@@ -209,11 +204,21 @@ func searchQdrant(embedding []float32, limit int) ([]map[string]interface{}, err
 		return nil, err
 	}
 
+	// Debug: Print the raw search result
+	rawJSON, _ := json.MarshalIndent(searchResult, "", "  ")
+	log.Printf("Raw search result: %s", string(rawJSON))
+
 	// Extract the result array
 	resultArray, ok := searchResult["result"].([]interface{})
 	if !ok {
 		log.Printf("Error: result field is not an array")
 		return nil, fmt.Errorf("result field is not an array")
+	}
+
+	// Debug: Print the first result if available
+	if len(resultArray) > 0 {
+		firstResult, _ := json.MarshalIndent(resultArray[0], "", "  ")
+		log.Printf("First result: %s", string(firstResult))
 	}
 
 	// Convert to a more usable format
@@ -229,45 +234,6 @@ func searchQdrant(embedding []float32, limit int) ([]map[string]interface{}, err
 
 	log.Printf("Found %d results in Qdrant", len(results))
 	return results, nil
-}
-
-// Function to get collection info
-func getCollectionInfo(collectionName string) (map[string]interface{}, error) {
-	log.Printf("Getting info for collection '%s'...", collectionName)
-
-	// Get collection info
-	qdrantURL := fmt.Sprintf("%s/collections/%s", qdrantServiceAddress, collectionName)
-	resp, err := http.Get(qdrantURL)
-	if err != nil {
-		log.Printf("Error getting collection info: %v", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Error reading response body: %v", err)
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Error response from Qdrant: %s", string(respBody))
-		return nil, fmt.Errorf("error response from Qdrant: %s", string(respBody))
-	}
-
-	// Parse the response
-	var collectionInfo map[string]interface{}
-	err = json.Unmarshal(respBody, &collectionInfo)
-	if err != nil {
-		log.Printf("Error unmarshaling collection info: %v", err)
-		return nil, err
-	}
-
-	// Log the collection info
-	infoBytes, _ := json.MarshalIndent(collectionInfo, "", "  ")
-	log.Printf("Collection info: %s", string(infoBytes))
-
-	return collectionInfo, nil
 }
 
 // Function to delete a collection
@@ -305,77 +271,12 @@ func deleteQdrantCollection(collectionName string) error {
 	return nil
 }
 
-// Function to check if a collection exists and create it if it doesn't
+// Function to create a collection
 func createQdrantCollection(collectionName string) error {
-	log.Printf("Checking if collection '%s' exists...", collectionName)
-
-	// Check if collection exists
-	qdrantURL := fmt.Sprintf("%s/collections/%s", qdrantServiceAddress, collectionName)
-	resp, err := http.Get(qdrantURL)
-	if err != nil {
-		log.Printf("Error checking if collection exists: %v", err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		log.Printf("Collection '%s' already exists", collectionName)
-
-		// Get collection info
-		collectionInfo, err := getCollectionInfo(collectionName)
-		if err != nil {
-			log.Printf("Error getting collection info: %v", err)
-		}
-
-		// Check if the collection has vectors configured
-		result, ok := collectionInfo["result"].(map[string]interface{})
-		if !ok {
-			log.Printf("Error: result field is not a map")
-		} else {
-			config, ok := result["config"].(map[string]interface{})
-			if !ok {
-				log.Printf("Error: config field is not a map")
-			} else {
-				params, ok := config["params"].(map[string]interface{})
-				if !ok {
-					log.Printf("Error: params field is not a map")
-				} else {
-					vectors, ok := params["vectors"].(map[string]interface{})
-					if !ok || len(vectors) == 0 {
-						log.Printf("Vectors are not configured in this collection, recreating...")
-
-						// Delete the collection
-						err = deleteQdrantCollection(collectionName)
-						if err != nil {
-							log.Printf("Error deleting collection: %v", err)
-							return err
-						}
-					} else {
-						log.Printf("Vectors configuration: %v", vectors)
-
-						// Check if the vectors configuration has a "data" field
-						_, hasDataVector := vectors["data"]
-						if !hasDataVector {
-							log.Printf("Vector with name 'data' is not configured in this collection, recreating...")
-
-							// Delete the collection
-							err = deleteQdrantCollection(collectionName)
-							if err != nil {
-								log.Printf("Error deleting collection: %v", err)
-								return err
-							}
-						} else {
-							return nil
-						}
-					}
-				}
-			}
-		}
-	}
-
-	log.Printf("Collection '%s' does not exist, creating...", collectionName)
+	log.Printf("Creating collection '%s'...", collectionName)
 
 	// Create collection
+	qdrantURL := fmt.Sprintf("%s/collections/%s", qdrantServiceAddress, collectionName)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"vectors": map[string]interface{}{
 			"data": map[string]interface{}{
@@ -397,7 +298,7 @@ func createQdrantCollection(collectionName string) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
-	resp, err = client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error sending HTTP request: %v", err)
 		return err
@@ -419,143 +320,118 @@ func createQdrantCollection(collectionName string) error {
 	return nil
 }
 
-func main() {
-	log.Println("Starting Telegram RAG bot...")
-
-	// Telegram Bot Token
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-	if token == "" {
-		log.Fatal("TELEGRAM_BOT_TOKEN environment variable is required")
+// Integration test for saving and searching embeddings
+func TestSaveAndSearchEmbeddings(t *testing.T) {
+	// Skip this test if the SKIP_INTEGRATION_TESTS environment variable is set
+	if os.Getenv("SKIP_INTEGRATION_TESTS") == "true" {
+		t.Skip("Skipping integration test")
 	}
-	log.Println("Telegram token found")
 
-	// Create Qdrant collection if it doesn't exist
-	err := createQdrantCollection(collectionName)
+	// Create a test collection
+	err := createQdrantCollection(testCollectionName)
 	if err != nil {
-		log.Fatalf("Failed to create/check Qdrant collection: %v", err)
+		t.Fatalf("Failed to create test collection: %v", err)
 	}
-
-	// Telebot settings
-	log.Println("Configuring Telegram bot...")
-	pref := tele.Settings{
-		Token:  token,
-		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
-	}
-
-	// Create new bot
-	log.Println("Creating Telegram bot instance...")
-	b, err := tele.NewBot(pref)
-	if err != nil {
-		log.Fatalf("Failed to create Telegram bot: %v", err)
-		return
-	}
-	log.Printf("Telegram bot created successfully. Bot username: @%s", b.Me.Username)
-
-	// Graceful shutdown
-	log.Println("Setting up graceful shutdown...")
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-	log.Println("Graceful shutdown configured")
-
-	// Message handler
-	log.Println("Setting up message handler...")
-	b.Handle(tele.OnText, func(c tele.Context) error {
-		log.Printf("Received message: '%s' from %s", c.Text(), c.Sender().Username)
-
-		// Check if the bot is mentioned
-		if strings.Contains(c.Text(), "@"+b.Me.Username) {
-			log.Println("Bot was mentioned, processing as a query...")
-			// Extract the query from the message
-			query := strings.ReplaceAll(c.Text(), "@"+b.Me.Username, "")
-			query = strings.TrimSpace(query)
-			log.Printf("Extracted query: '%s'", query)
-
-			// Get embedding for the query
-			log.Println("Getting embeddings for query...")
-			queryEmbeddings, err := getEmbeddings([]string{query})
-			if err != nil {
-				log.Printf("Error getting embedding for query: %v", err)
-				return c.Send("Error processing your query")
-			}
-			log.Println("Embeddings generated successfully")
-
-			// Search the vector database
-			log.Println("Searching vector database for similar messages...")
-			searchResults, err := searchQdrant(queryEmbeddings, 5)
-			if err != nil {
-				log.Printf("Error searching vector database: %v", err)
-				return c.Send("Error processing your query")
-			}
-			log.Printf("Found %d results in vector database", len(searchResults))
-
-			// Construct the answer from the search results
-			log.Println("Constructing answer from search results...")
-			var answer strings.Builder
-			answer.WriteString("Here are some relevant messages:\n")
-			for i, result := range searchResults {
-				payload, ok := result["payload"].(map[string]interface{})
-				if !ok {
-					log.Printf("Error: payload is not a map")
-					continue
-				}
-				text, ok := payload["text"].(string)
-				if !ok {
-					log.Printf("Error: text is not a string")
-					continue
-				}
-				score, ok := result["score"].(float64)
-				if !ok {
-					log.Printf("Error: score is not a float64")
-					score = 0
-				}
-				log.Printf("Result %d: Score=%f, Text='%s'", i+1, score, text)
-				answer.WriteString(fmt.Sprintf("- %s\n", text))
-			}
-
-			// Send the answer
-			log.Println("Sending answer to user...")
-			return c.Send(answer.String())
-		}
-
-		// Calculate embedding for the message
-		log.Println("Processing regular message for storage...")
-		log.Println("Generating embeddings for message...")
-		embeddings, err := getEmbeddings([]string{c.Text()})
+	defer func() {
+		// Clean up: delete the test collection
+		err := deleteQdrantCollection(testCollectionName)
 		if err != nil {
-			log.Printf("Error getting embedding: %v", err)
-			return nil // Don't return an error to the user for background processing
+			t.Logf("Failed to delete test collection: %v", err)
 		}
-		log.Println("Embeddings generated successfully")
-
-		// Store the message and its embedding in the vector database
-		log.Println("Storing message in vector database...")
-		id := time.Now().UnixNano()
-		err = saveToQdrant(id, c.Text(), c.Sender().Username, embeddings)
-		if err != nil {
-			log.Printf("Error adding to vector database: %v", err)
-			return nil
-		}
-		log.Printf("Message stored successfully with ID: %d", id)
-
-		return nil
-	})
-	log.Println("Message handler configured")
-
-	// Start the bot
-	log.Println("Starting the Telegram bot...")
-	go func() {
-		log.Println("Bot is now running and listening for messages")
-		b.Start()
 	}()
 
-	log.Println("Bot is running in the background. Press Ctrl+C to stop.")
+	// Test messages
+	testMessages := []string{
+		"test",
+		"test 1",
+		"test 2",
+		"this is a completely different message",
+	}
 
-	// Wait for shutdown signal
-	<-ctx.Done()
+	// Save test messages
+	for i, msg := range testMessages {
+		// Get embeddings
+		embedding, err := getEmbeddings([]string{msg})
+		if err != nil {
+			t.Fatalf("Failed to get embeddings for message %d: %v", i, err)
+		}
 
-	// Shutdown the bot
-	log.Println("Shutdown signal received, stopping the bot...")
-	b.Stop()
-	log.Println("Telegram bot stopped successfully")
-	log.Println("Goodbye!")
+		// Save to Qdrant
+		id := time.Now().UnixNano() + int64(i)
+		err = saveToQdrant(testCollectionName, id, msg, "test_user", embedding)
+		if err != nil {
+			t.Fatalf("Failed to save message %d to Qdrant: %v", i, err)
+		}
+	}
+
+	// Wait a moment for Qdrant to process the points
+	time.Sleep(1 * time.Second)
+
+	// Search for "test"
+	searchEmbedding, err := getEmbeddings([]string{"test"})
+	if err != nil {
+		t.Fatalf("Failed to get embeddings for search query: %v", err)
+	}
+
+	results, err := searchQdrant(testCollectionName, searchEmbedding, 5)
+	if err != nil {
+		t.Fatalf("Failed to search Qdrant: %v", err)
+	}
+
+	// Verify results
+	if len(results) == 0 {
+		t.Errorf("Expected to find results for 'test', but found none")
+	} else {
+		t.Logf("Found %d results for 'test'", len(results))
+
+		// Debug: Print the structure of the first result
+		if len(results) > 0 {
+			for k, v := range results[0] {
+				t.Logf("Result key: %s, type: %T", k, v)
+			}
+		}
+
+		// Check that the top results contain "test"
+		foundTestMessage := false
+		for _, result := range results {
+			// Try to extract payload in different ways
+			var text string
+			var found bool
+
+			// Try direct access to payload.text
+			if payload, ok := result["payload"].(map[string]interface{}); ok {
+				if textVal, ok := payload["text"].(string); ok {
+					text = textVal
+					found = true
+				}
+			}
+
+			// If not found, try to look for a document field
+			if !found {
+				if doc, ok := result["document"].(map[string]interface{}); ok {
+					if textVal, ok := doc["text"].(string); ok {
+						text = textVal
+						found = true
+					}
+				}
+			}
+
+			// If still not found, try to look for a text field directly
+			if !found {
+				if textVal, ok := result["text"].(string); ok {
+					text = textVal
+					found = true
+				}
+			}
+
+			if found && (text == "test" || text == "test 1" || text == "test 2") {
+				foundTestMessage = true
+				t.Logf("Found test message: %s", text)
+			}
+		}
+
+		if !foundTestMessage {
+			t.Errorf("Expected to find a test message in the results, but none was found")
+		}
+	}
 }
