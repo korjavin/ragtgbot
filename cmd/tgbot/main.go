@@ -760,7 +760,6 @@ func main() {
 				}
 
 				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, displayText))
-				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, text))
 				messageCount++
 			}
 
