@@ -93,10 +93,10 @@ type EmbeddingResponse struct {
 }
 
 const (
-	maxChunkSize       = 3072 // Maximum characters in a chunk (old value, keeping for reference)
-	softLimitChunkSize = 2000 // Soft limit for chunk size
-	hardLimitChunkSize = 4000 // Hard limit for chunk size
-	timeProximityLimit = 3600 // Time proximity limit in seconds (1 hour)
+	maxChunkSize       = 3072      // Maximum characters in a chunk (old value, keeping for reference)
+	softLimitChunkSize = 1000      // Soft limit for chunk size
+	hardLimitChunkSize = 4000      // Hard limit for chunk size
+	timeProximityLimit = 3600 * 24 // Time proximity limit in seconds (24 hour)
 )
 
 func main() {
