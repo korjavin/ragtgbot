@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/cheggaaa/pb/v3"
 )
 
 type TelegramBackup struct {
@@ -32,8 +34,15 @@ type EmbeddingResponse struct {
 }
 
 func main() {
+	// Get filename from arguments
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: go run cmd/uploadbackup/main.go <filename>")
+		return
+	}
+	filename := os.Args[1]
+
 	// 1. Read the JSON file
-	jsonFile, err := os.Open("testdata/result.json")
+	jsonFile, err := os.Open(filename)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -54,8 +63,12 @@ func main() {
 	err = createQdrantCollection("chat_history")
 	if err != nil {
 		fmt.Println(err)
-		return
+		//return // Don't return, just log the error and continue
 	}
+
+	// Initialize progress bar
+	bar := pb.StartNew(len(backup.Messages))
+	defer bar.Finish()
 
 	// 3. Iterate through messages and extract data
 	for _, message := range backup.Messages {
@@ -77,8 +90,10 @@ func main() {
 				continue
 			}
 
-			fmt.Printf("Saved message from %s: %s\n", username, text)
+			//fmt.Printf("Saving to Qdrant: User=%s: %v\n", username, embedding)
+			//fmt.Printf("Saved message from %s: %s\n", username, text)
 		}
+		bar.Increment()
 	}
 
 	fmt.Println("Finished processing Telegram backup")
@@ -162,19 +177,30 @@ func saveToQdrant(messageID int64, text string, username string, embedding []flo
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	_, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	log.Println(string(body)) // Print the response from Qdrant
+	//log.Println(string(body)) // Print the response from Qdrant
 
-	fmt.Printf("Saving to Qdrant: User=%s, Text=%s, Embedding=%v\n", username, text, embedding)
 	return nil
 }
 
 func createQdrantCollection(collectionName string) error {
 	qdrantURL := fmt.Sprintf("http://localhost:6333/collections/%s", collectionName)
+
+	// Check if collection exists
+	resp, err := http.Get(qdrantURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("Collection %s already exists\n", collectionName)
+		return nil
+	}
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"vectors_config": map[string]interface{}{
@@ -193,18 +219,18 @@ func createQdrantCollection(collectionName string) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err = client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	_, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	log.Println(string(body)) // Print the response from Qdrant
+	//log.Println(string(body)) // Print the response from Qdrant
 
 	return nil
 }
