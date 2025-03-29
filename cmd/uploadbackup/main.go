@@ -182,7 +182,7 @@ func main() {
 				continue
 			}
 
-			fmt.Printf("Successfully processed message ID %d\n", message.ID)
+			//fmt.Printf("Successfully processed message ID %d\n", message.ID)
 		}
 		bar.Increment()
 	}
