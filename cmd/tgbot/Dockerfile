@@ -1,5 +1,4 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -26,11 +25,6 @@ WORKDIR /root/
 # Copy the binary from the builder stage
 COPY --from=builder /tgbot .
 
-# Set environment variables
-ENV TELEGRAM_BOT_TOKEN=""
-ENV OPENAI_API_KEY=""
-ENV EMBEDDING_SERVICE_ADDRESS="http://embedding-service:8000/embeddings"
-ENV QDRANT_SERVICE_ADDRESS="http://qdrant:6333"
 
 # Command to run
 CMD ["./tgbot"]
