@@ -327,6 +327,11 @@ func TestSaveAndSearchEmbeddings(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
+	// Skip this test if the LOCAL_SERVICES environment variable is not set
+	if os.Getenv("LOCAL_SERVICES") != "true" {
+		t.Skip("Skipping integration test: LOCAL_SERVICES not set")
+	}
+
 	// Create a test collection
 	err := createQdrantCollection(testCollectionName)
 	if err != nil {
