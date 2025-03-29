@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -50,13 +51,40 @@ const (
 	openaiModel                    = "gpt-4o-mini"                                // OpenAI model to use
 	vectorSearchLimit              = 5                                            // Number of similar messages to retrieve
 	restrictedAccessMessage        = "Sorry, this bot is restricted to answer outside of specific groups, but it's open-source and self-hosted, you can always host your own instance of it at https://github.com/korjavin/ragtgbot"
+	maxChunkSize                   = 3072 // Maximum characters in a buffer before processing
 )
 
 // Global variables for service addresses
 var (
 	embeddingServiceAddress string
 	qdrantServiceAddress    string
+	messageBufferMutex      sync.Mutex
 )
+
+// Message buffer to collect messages before processing
+type messageBuffer struct {
+	text     string
+	username string
+	size     int
+}
+
+// Add a message to the buffer
+func (b *messageBuffer) add(username, text string) {
+	if b.text == "" {
+		b.username = username // Set username from first message
+		b.text = fmt.Sprintf("%s: %s", username, text)
+	} else {
+		b.text += fmt.Sprintf("\n%s: %s", username, text)
+	}
+	b.size += len(text)
+}
+
+// Clear the buffer
+func (b *messageBuffer) clear() {
+	b.text = ""
+	b.username = ""
+	b.size = 0
+}
 
 type TextList struct {
 	Texts []string `json:"texts"`
@@ -585,6 +613,31 @@ func isAllowedChat(chatID int64, allowedGroups []int64) bool {
 	return false
 }
 
+// Process message buffer and save to Qdrant
+func processBuffer(buffer *messageBuffer) error {
+	if buffer.size == 0 {
+		return nil // Nothing to process
+	}
+
+	log.Printf("Processing message buffer with %d characters", buffer.size)
+
+	// Get embedding for combined text
+	embeddings, err := getEmbeddings([]string{buffer.text})
+	if err != nil {
+		return fmt.Errorf("error getting embedding: %v", err)
+	}
+
+	// Save to Qdrant
+	id := time.Now().UnixNano()
+	err = saveToQdrant(id, buffer.text, buffer.username, embeddings)
+	if err != nil {
+		return fmt.Errorf("error saving to Qdrant: %v", err)
+	}
+
+	log.Printf("Successfully processed buffer and saved to Qdrant with ID: %d", id)
+	return nil
+}
+
 func main() {
 	log.Println("Starting Telegram RAG bot...")
 
@@ -664,6 +717,9 @@ func main() {
 	defer cancel()
 	log.Println("Graceful shutdown configured")
 
+	// Initialize message buffer
+	buffer := &messageBuffer{}
+
 	// Message handler
 	log.Println("Setting up message handler...")
 	b.Handle(tele.OnText, func(c tele.Context) error {
@@ -685,6 +741,16 @@ func main() {
 			query := strings.ReplaceAll(c.Text(), "@"+b.Me.Username, "")
 			query = strings.TrimSpace(query)
 			log.Printf("Extracted query: '%s'", query)
+
+			// Process any buffered messages before handling the query
+			messageBufferMutex.Lock()
+			if buffer.size > 0 {
+				if err := processBuffer(buffer); err != nil {
+					log.Printf("Error processing buffered messages: %v", err)
+				}
+				buffer.clear()
+			}
+			messageBufferMutex.Unlock()
 
 			// Get embedding for the query
 			log.Println("Getting embeddings for query...")
@@ -725,7 +791,7 @@ func main() {
 			fullResponse.WriteString("Here are some relevant messages:\n")
 			messageCount := 0
 			for i, result := range searchResults {
-				if i >= 1 { // Limit to top 5 results
+				if i >= 3 { // Limit to top 5 results
 					break
 				}
 
@@ -755,8 +821,8 @@ func main() {
 
 				// Truncate text to first 50 characters if longer
 				displayText := text
-				if len(displayText) > 50 {
-					displayText = displayText[:50] + "..."
+				if len(displayText) > 70 {
+					displayText = displayText[:70] + "..."
 				}
 
 				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, displayText))
@@ -778,25 +844,22 @@ func main() {
 			return nil
 		}
 
-		// Calculate embedding for the message
-		log.Println("Processing regular message for storage...")
-		log.Println("Generating embeddings for message...")
-		embeddings, err := getEmbeddings([]string{c.Text()})
-		if err != nil {
-			log.Printf("Error getting embedding: %v", err)
-			return nil // Don't return an error to the user for background processing
-		}
-		log.Println("Embeddings generated successfully")
+		// Add message to buffer
+		messageBufferMutex.Lock()
+		defer messageBufferMutex.Unlock()
 
-		// Store the message and its embedding in the vector database
-		log.Println("Storing message in vector database...")
-		id := time.Now().UnixNano()
-		err = saveToQdrant(id, c.Text(), c.Sender().Username, embeddings)
-		if err != nil {
-			log.Printf("Error adding to vector database: %v", err)
-			return nil
+		log.Println("Adding message to buffer...")
+		buffer.add(c.Sender().Username, c.Text())
+
+		// Process buffer if it exceeds max size
+		if buffer.size >= maxChunkSize {
+			log.Println("Buffer size exceeded maximum, processing...")
+			if err := processBuffer(buffer); err != nil {
+				log.Printf("Error processing buffer: %v", err)
+				// Don't return an error to the user for background processing
+			}
+			buffer.clear()
 		}
-		log.Printf("Message stored successfully with ID: %d", id)
 
 		return nil
 	})
@@ -813,6 +876,16 @@ func main() {
 
 	// Wait for shutdown signal
 	<-ctx.Done()
+
+	// Process any remaining buffered messages before shutdown
+	messageBufferMutex.Lock()
+	if buffer.size > 0 {
+		log.Println("Processing remaining buffered messages before shutdown...")
+		if err := processBuffer(buffer); err != nil {
+			log.Printf("Error processing final buffer: %v", err)
+		}
+	}
+	messageBufferMutex.Unlock()
 
 	// Shutdown the bot
 	log.Println("Shutdown signal received, stopping the bot...")
