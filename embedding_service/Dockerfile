@@ -15,8 +15,8 @@ RUN mkdir -p /app/models
 
 # Pre-download the model during build
 RUN python -c "from sentence_transformers import SentenceTransformer; \
-    model = SentenceTransformer('BAAI/bge-multilingual-gemma2'); \
-    model.save('/app/models/bge-multilingual-gemma2')"
+    model = SentenceTransformer('distiluse-base-multilingual-cased-v1'); \
+    model.save('/app/models/distiluse-base-multilingual-cased-v1')"
 
 
 # Stage 2: Final image - copy deps from builder and add app code
@@ -30,7 +30,7 @@ COPY --from=builder /usr/local /usr/local
 COPY --from=builder /app/models /app/models
 
 # Set environment variable for local model path
-ENV LOCAL_MODEL_PATH=/app/models/bge-multilingual-gemma2
+ENV LOCAL_MODEL_PATH=/app/models/distiluse-base-multilingual-cased-v1
 
 # Copy application code
 COPY . .

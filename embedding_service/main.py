@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize model variable and configuration
 model = None
-MODEL_NAME = "BAAI/bge-multilingual-gemma2"
-LOCAL_MODEL_PATH = os.environ.get("LOCAL_MODEL_PATH", "/app/models/bge-multilingual-gemma2")
+MODEL_NAME = "distiluse-base-multilingual-cased-v1"
+LOCAL_MODEL_PATH = os.environ.get("LOCAL_MODEL_PATH", "/app/models/distiluse-base-multilingual-cased-v1")
 
 try:
     # Import SentenceTransformer after logging is set up to catch import errors
