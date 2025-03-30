@@ -360,7 +360,7 @@ func createQdrantCollection(collectionName string) error {
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"vectors_config": map[string]interface{}{
-			"size":     384, // Embedding size from all-MiniLM-L6-v2
+			"size":     512, // Embedding size from istiluse-base-multilingual-cased-v1
 			"distance": "Cosine",
 		},
 	})
