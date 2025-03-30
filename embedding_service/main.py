@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import uvicorn
 import json
 import logging
+import os
 
 app = FastAPI()
 
@@ -10,19 +11,26 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize model variable
+# Initialize model variable and configuration
 model = None
+MODEL_NAME = "BAAI/bge-multilingual-gemma2"
+LOCAL_MODEL_PATH = os.environ.get("LOCAL_MODEL_PATH", "/app/models/bge-multilingual-gemma2")
 
 try:
     # Import SentenceTransformer after logging is set up to catch import errors
     from sentence_transformers import SentenceTransformer
+    import torch
     
-    #model_name = "BAAI/bge-multilingual-gemma2"  
-    #model_name = "answerdotai/ModernBERT-base"
-    model_name = "all-MiniLM-L6-v2"
-    logger.info(f"Loading model: {model_name}")
-    model = SentenceTransformer(model_name)
-    logger.info("Model loaded successfully")
+    # First try loading from local path
+    if os.path.exists(LOCAL_MODEL_PATH):
+        logger.info(f"Loading model from local path: {LOCAL_MODEL_PATH}")
+        model = SentenceTransformer(LOCAL_MODEL_PATH, model_kwargs={"torch_dtype": torch.float16})
+        logger.info("Model loaded successfully from local path")
+    else:
+        # Fallback to downloading from HuggingFace
+        logger.info(f"Local model not found. Downloading model: {MODEL_NAME}")
+        model = SentenceTransformer(MODEL_NAME, model_kwargs={"torch_dtype": torch.float16})
+        logger.info("Model downloaded and loaded successfully")
 except Exception as e:
     logger.error(f"Error loading model: {str(e)}")
 
