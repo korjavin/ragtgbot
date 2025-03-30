@@ -17,8 +17,9 @@ try:
     # Import SentenceTransformer after logging is set up to catch import errors
     from sentence_transformers import SentenceTransformer
     
-    model_name = "BAAI/bge-multilingual-gemma2"  
-    #model_name = "all-MiniLM-L6-v2"
+    #model_name = "BAAI/bge-multilingual-gemma2"  
+    #model_name = "answerdotai/ModernBERT-base"
+    model_name = "all-MiniLM-L6-v2"
     logger.info(f"Loading model: {model_name}")
     model = SentenceTransformer(model_name)
     logger.info("Model loaded successfully")
