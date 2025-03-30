@@ -40,7 +40,7 @@ The core bot that:
 ### 2. Embedding Service (embedding_service)
 
 A FastAPI service that:
-- Generates text embeddings using the `all-MiniLM-L6-v2` model
+- Generates text embeddings using the `https://huggingface.co/sentence-transformers/distiluse-base-multilingual-cased-v1` model
 - Provides a REST API for embedding generation
 - Supports batch processing of texts
 - Runs as a separate microservice

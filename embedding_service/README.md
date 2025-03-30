@@ -1,6 +1,6 @@
 # Embedding Service
 
-A FastAPI service that generates text embeddings using the `all-MiniLM-L6-v2` model from sentence-transformers.
+A FastAPI service that generates text embeddings using the `https://huggingface.co/sentence-transformers/distiluse-base-multilingual-cased-v1` model from sentence-transformers.
 
 ## Features
 
@@ -79,6 +79,6 @@ docker run -p 8000:8000 embedding-service
 Or pull from GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/korjavin/ragtgbot:latest
-docker run -p 8000:8000 ghcr.io/korjavin/ragtgbot:latest
+docker pull ghcr.io/korjavin/ragtgbot-embedding-service:latest
+docker run -p 8000:8000 ghcr.io/korjavin/ragtgbot-embedding-service:latest
 ```
