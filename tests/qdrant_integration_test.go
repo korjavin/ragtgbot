@@ -280,7 +280,7 @@ func createQdrantCollection(collectionName string) error {
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"vectors": map[string]interface{}{
 			"data": map[string]interface{}{
-				"size":     384, // Embedding size
+				"size":     512, // Embedding size
 				"distance": "Cosine",
 			},
 		},

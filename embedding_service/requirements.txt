@@ -1,3 +1,5 @@
 fastapi
 uvicorn
 sentence-transformers
+pydantic
+torch
