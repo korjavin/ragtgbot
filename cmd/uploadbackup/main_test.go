@@ -32,7 +32,7 @@ func setupTestBuffer(t *testing.T) func([]Message) []int64 {
 		var lastTimestamp int64 = 0
 
 		// Mock processBuffer function
-		processBufferFn := func(buf *buffer.MessageBuffer, msgID int64) error {
+		processBufferFn := func(msgID int64) error {
 			processedChunks = append(processedChunks, msgID)
 			return nil
 		}
@@ -75,7 +75,7 @@ func setupTestBuffer(t *testing.T) func([]Message) []int64 {
 				}
 
 				if shouldProcess {
-					err := processBufferFn(msgBuffer, message.ID) // Process with current message ID
+					err := processBufferFn(message.ID) // Process with current message ID
 					assert.NoError(t, err)
 					msgBuffer.Clear()
 					lastTimestamp = 0 // Reset timestamp context after clearing
@@ -89,7 +89,7 @@ func setupTestBuffer(t *testing.T) func([]Message) []int64 {
 		// Process remaining messages in buffer
 		if !msgBuffer.IsEmpty() {
 			// Use the ID of the last message added to the buffer
-			err := processBufferFn(msgBuffer, lastAddedMessageID)
+			err := processBufferFn(lastAddedMessageID)
 			assert.NoError(t, err)
 		}
 
