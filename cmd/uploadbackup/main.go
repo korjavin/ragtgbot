@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 
@@ -27,10 +26,10 @@ func main() {
 	qdrantAddr := os.Getenv("QDRANT_SERVICE_ADDRESS")
 	if qdrantAddr != "" {
 		qdrantBaseURL = qdrantAddr
-		log.Printf("Using Qdrant address from env: %s", qdrantBaseURL)
+		// log.Printf("Using Qdrant address from env: %s", qdrantBaseURL) // Removed logging
 	} else {
 		qdrantBaseURL = "http://localhost:6333" // Default URL
-		log.Printf("Using default Qdrant address: %s", qdrantBaseURL)
+		// log.Printf("Using default Qdrant address: %s", qdrantBaseURL) // Removed logging
 	}
 
 	// 1. Read the JSON file
@@ -54,18 +53,18 @@ func main() {
 		if jsonErr := json.Unmarshal(byteValue, &rawData); jsonErr == nil {
 			if messages, ok := rawData["messages"].([]interface{}); ok {
 				// Find problematic messages
-				for i, msg := range messages {
+				for _, msg := range messages { // Use blank identifier for unused index
 					if msgMap, ok := msg.(map[string]interface{}); ok {
 						if text, exists := msgMap["text"]; exists {
 							switch text.(type) {
 							case string:
 								// This is fine
 							case []interface{}:
-								fmt.Printf("Found array text at message index %d, ID: %v\n",
-									i, msgMap["id"])
+								// fmt.Printf("Found array text at message index %d, ID: %v\n",
+								// 	i, msgMap["id"]) // Removed logging
 							default:
-								fmt.Printf("Found unusual text type at message index %d, type: %T\n",
-									i, text)
+								// fmt.Printf("Found unusual text type at message index %d, type: %T\n",
+								// 	i, text) // Removed logging
 							}
 						}
 					}
@@ -79,7 +78,7 @@ func main() {
 	// Create Qdrant collection if it doesn't exist
 	err = createQdrantCollection("chat_history")
 	if err != nil {
-		fmt.Println(err)
+		// fmt.Println(err) // Removed logging, continue even if collection creation fails or exists
 		//return // Don't return, just log the error and continue
 	}
 
@@ -91,6 +90,7 @@ func main() {
 	msgBuffer := buffer.NewMessageBuffer()
 	lastMessageID := int64(0)
 	var lastTimestamp int64 = 0
+	processedBufferCount := 0 // Counter for processed buffers
 
 	// 3. Iterate through messages and extract data
 	for _, message := range backup.Messages {
@@ -98,7 +98,7 @@ func main() {
 			// Extract text using our new method
 			text, err := message.GetText()
 			if err != nil {
-				fmt.Printf("Error extracting text from message ID %d: %v\n", message.ID, err)
+				// fmt.Printf("Error extracting text from message ID %d: %v\n", message.ID, err) // Removed logging
 				continue
 			}
 
@@ -114,7 +114,7 @@ func main() {
 			// Parse message timestamp
 			currentTimestamp, err := parseTimestamp(message.DateUnixtime)
 			if err != nil {
-				fmt.Printf("Error parsing timestamp for message ID %d: %v\n", message.ID, err)
+				// fmt.Printf("Error parsing timestamp for message ID %d: %v\n", message.ID, err) // Removed logging
 				currentTimestamp = 0
 			}
 
@@ -131,8 +131,10 @@ func main() {
 				// 2. Buffer exceeds soft limit AND messages are not close in time
 				if msgBuffer.Size >= hardLimitChunkSize ||
 					(msgBuffer.Size >= softLimitChunkSize && !timeProximity) {
-					if err := processBuffer(msgBuffer, lastMessageID); err != nil {
-						fmt.Printf("Error processing buffer at message ID %d: %v\n", lastMessageID, err)
+					if err := processBuffer(msgBuffer, lastMessageID); err == nil {
+						processedBufferCount++ // Increment counter on successful processing
+					} else {
+						// fmt.Printf("Error processing buffer at message ID %d: %v\n", lastMessageID, err) // Removed logging
 					}
 					msgBuffer.Clear()
 				}
@@ -147,12 +149,14 @@ func main() {
 
 	// Process remaining messages in buffer
 	if !msgBuffer.IsEmpty() {
-		if err := processBuffer(msgBuffer, lastMessageID); err != nil {
-			fmt.Printf("Error processing final buffer: %v\n", err)
+		if err := processBuffer(msgBuffer, lastMessageID); err == nil {
+			processedBufferCount++ // Increment counter for final buffer
+		} else {
+			// fmt.Printf("Error processing final buffer: %v\n", err) // Removed logging
 		}
 	}
 
-	fmt.Println("Finished processing Telegram backup")
+	fmt.Printf("Finished processing Telegram backup. Processed %d buffers.\n", processedBufferCount)
 }
 
 func processBuffer(buffer *buffer.MessageBuffer, messageID int64) error {
@@ -199,14 +203,14 @@ func getEmbedding(text string) ([]float64, error) {
 	var embeddingString string
 	err = json.Unmarshal(body, &embeddingString)
 	if err != nil {
-		log.Println("Error unmarshaling embedding string:", err)
+		// log.Println("Error unmarshaling embedding string:", err) // Removed logging
 		return nil, err
 	}
 
 	var embeddingList [][]float64
 	err = json.Unmarshal([]byte(embeddingString), &embeddingList)
 	if err != nil {
-		log.Println("Error unmarshaling embedding list:", err)
+		// log.Println("Error unmarshaling embedding list:", err) // Removed logging
 		return nil, err
 	}
 
@@ -273,7 +277,7 @@ func createQdrantCollection(collectionName string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		log.Printf("Collection %s already exists\n", collectionName)
+		// log.Printf("Collection %s already exists\n", collectionName) // Removed logging
 		return nil
 	}
 
