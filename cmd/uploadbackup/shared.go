@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type TelegramBackup struct {
@@ -25,50 +27,69 @@ type Message struct {
 	Action       string          `json:"action,omitempty"`
 }
 
-// GetText extracts text from the message, handling both string and array formats
+// GetText extracts text from the message, handling plain strings and mixed arrays.
 func (m *Message) GetText() (string, error) {
-	// If Text is empty, return empty string
 	if len(m.Text) == 0 {
 		return "", nil
 	}
 
-	// Try to unmarshal as string first
-	var textStr string
-	err := json.Unmarshal(m.Text, &textStr)
-	if err == nil {
-		return textStr, nil
+	// Trim leading/trailing whitespace (like quotes) before trying to unmarshal
+	trimmedText := bytes.TrimSpace(m.Text)
+	if len(trimmedText) == 0 {
+		return "", nil
 	}
 
-	// Log the raw text for debugging
-	// fmt.Printf("Message ID %d has non-string text: %s\n", m.ID, string(m.Text)) // Keep commented or remove if not needed
+	// Handle plain string case first (most common)
+	// Check if it looks like a JSON string (starts and ends with quotes)
+	if trimmedText[0] == '"' && trimmedText[len(trimmedText)-1] == '"' {
+		var textStr string
+		// Use Unmarshal on the trimmed text which should be a valid JSON string
+		err := json.Unmarshal(trimmedText, &textStr)
+		if err == nil {
+			return textStr, nil
+		}
+		// If unmarshal fails even for quoted string, log or proceed?
+		// Let's proceed to array parsing attempt, as the error might be misleading.
+		// fmt.Printf("Warning: Failed to unmarshal seemingly plain string (ID: %d): %v, raw: %s\n", m.ID, err, string(m.Text))
+	}
 
-	// Try to unmarshal as a generic JSON value to see what we're dealing with
-	// var rawValue interface{}
-	// if err := json.Unmarshal(m.Text, &rawValue); err == nil {
-	// 	fmt.Printf("Message ID %d text type: %T\n", m.ID, rawValue) // Keep commented or remove if not needed
-	// }
-
-	// If that fails, try to unmarshal as array of text entities
-	var textArray []map[string]interface{}
-	err = json.Unmarshal(m.Text, &textArray)
+	// Try to unmarshal as an array of interfaces for mixed types
+	var textParts []interface{}
+	err := json.Unmarshal(trimmedText, &textParts)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse text field (ID: %d): %v, raw text: %s",
+		// If it's not a string (or failed string parse) and not an array, return error.
+		// It might be a simple unquoted string or other format not handled here.
+		// Let's try returning the raw text directly if it doesn't start with '['
+		if trimmedText[0] != '[' {
+			// Attempt to return the raw text, assuming it might be an unquoted literal string
+			// This is a fallback, might need refinement based on actual data variations.
+			return string(m.Text), nil // Return original raw text, not trimmed
+		}
+		// Otherwise, it failed to parse as an array, return the error.
+		return "", fmt.Errorf("failed to parse text field (ID: %d) as string or array: %v, raw text: %s",
 			m.ID, err, string(m.Text))
 	}
 
-	// Extract text from array
-	var result string
-	// fmt.Printf("Message ID %d has text array with %d entities\n", m.ID, len(textArray)) // Keep commented or remove if not needed
-	for _, entity := range textArray {
-		// fmt.Printf("  Entity %d keys: %v\n", i, getMapKeys(entity)) // Keep commented or remove if not needed
-		if text, ok := entity["text"].(string); ok {
-			result += text
-			// fmt.Printf("  Entity %d text: %s\n", i, text) // Keep commented or remove if not needed
-		} // else if text, exists := entity["text"]; exists {
-		// fmt.Printf("  Entity %d has text of type %T: %v\n", i, text, text) // Keep commented or remove if not needed
-		// }
+	var result strings.Builder // Use strings.Builder for efficiency
+	for _, part := range textParts {
+		switch v := part.(type) {
+		case string:
+			result.WriteString(v)
+		case map[string]interface{}:
+			// Check if it's a text entity (like link, bold, etc.) with a "text" field
+			if textVal, ok := v["text"]; ok {
+				if textStr, isString := textVal.(string); isString {
+					result.WriteString(textStr)
+				}
+				// else: text value exists but is not a string, ignore.
+			}
+			// else: map doesn't contain "text" key (e.g., could be other entity types), ignore.
+		default:
+			// Ignore other types within the array (e.g., numbers, booleans)
+		}
 	}
-	return result, nil
+
+	return result.String(), nil
 }
 
 type EmbeddingResponse struct {
