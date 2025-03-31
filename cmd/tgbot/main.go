@@ -762,16 +762,15 @@ func main() {
 				fullResponse.WriteString("\n\n")
 			}
 
-			// Add top 5 relevant messages
-			fullResponse.WriteString("Here are some relevant messages:\n")
+			// Add top 10 relevant messages
 			messageCount := 0
 			relevantMessagesSection := "\nHere are some relevant messages:\n"
 			tempBuilder := strings.Builder{} // Build relevant messages separately first
 			tempBuilder.WriteString(relevantMessagesSection)
 
 			for i, result := range searchResults {
-				// Limit to top 5 results (or fewer if length limit reached)
-				if i >= 5 { // Use up to 5 results
+				// Limit to top 10 results (or fewer if length limit reached)
+				if i >= 10 { // Use up to 5 results
 					break
 				}
 
@@ -792,12 +791,7 @@ func main() {
 					username = "Unknown"
 				}
 
-				score, ok := result["score"].(float64)
-				if !ok {
-					score = 0
-				}
-
-				log.Printf("Result %d: Score=%f, User=%s, Text='%s'", i+1, score, username, text)
+				//log.Printf("Result %d: Score=%f, User=%s, Text='%s'", i+1, score, username, text)
 
 				// Truncate text to first 150 characters if longer
 				displayText := text
