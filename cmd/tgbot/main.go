@@ -604,7 +604,8 @@ func processBuffer(buffer *buffer.MessageBuffer) error {
 
 	// Save to Qdrant
 	id := time.Now().UnixNano()
-	err = saveToQdrant(id, text, username, embeddings)
+	// Ensure we save the raw text, assuming 'text' from GetContents is raw
+	err = saveToQdrant(id, text, username, embeddings) // Assuming 'text' is raw message content
 	if err != nil {
 		return fmt.Errorf("error saving to Qdrant: %v", err)
 	}
@@ -749,6 +750,7 @@ func main() {
 
 			// Prepare the response with both AI answer and relevant messages
 			var fullResponse strings.Builder
+			const maxResponseLength = 4000 // Keep under Telegram's 4096 limit
 
 			// Add AI-generated answer if available
 			if err != nil {
@@ -763,8 +765,13 @@ func main() {
 			// Add top 5 relevant messages
 			fullResponse.WriteString("Here are some relevant messages:\n")
 			messageCount := 0
+			relevantMessagesSection := "\nHere are some relevant messages:\n"
+			tempBuilder := strings.Builder{} // Build relevant messages separately first
+			tempBuilder.WriteString(relevantMessagesSection)
+
 			for i, result := range searchResults {
-				if i >= 3 { // Limit to top 5 results
+				// Limit to top 5 results (or fewer if length limit reached)
+				if i >= 5 { // Use up to 5 results
 					break
 				}
 
@@ -792,18 +799,38 @@ func main() {
 
 				log.Printf("Result %d: Score=%f, User=%s, Text='%s'", i+1, score, username, text)
 
-				// Truncate text to first 50 characters if longer
+				// Truncate text to first 150 characters if longer
 				displayText := text
-				if len(displayText) > 70 {
-					displayText = displayText[:70] + "..."
+				if len(displayText) > 150 { // Increased truncation limit
+					displayText = displayText[:150] + "..."
 				}
 
-				fullResponse.WriteString(fmt.Sprintf("- %s: %s\n", username, displayText))
+				// Format the line for this relevant message
+				relevantLine := fmt.Sprintf("- %s: %s\n", username, displayText)
+
+				// Check if adding this line exceeds the limit
+				if fullResponse.Len()+tempBuilder.Len()+len(relevantLine) > maxResponseLength {
+					log.Printf("Approaching message length limit, stopping relevant messages at %d", messageCount)
+					break // Stop adding messages if limit is near
+				}
+
+				// Add the line to the temporary builder
+				tempBuilder.WriteString(relevantLine)
 				messageCount++
 			}
 
-			if messageCount == 0 {
-				fullResponse.WriteString("No relevant messages found.\n")
+			// Append the relevant messages section if any were added
+			if messageCount > 0 {
+				fullResponse.WriteString(tempBuilder.String())
+			} else {
+				// Check if adding the "No relevant messages" text exceeds the limit
+				noMessagesText := "No relevant messages found.\n"
+				if fullResponse.Len()+len(relevantMessagesSection)+len(noMessagesText) <= maxResponseLength {
+					fullResponse.WriteString(relevantMessagesSection)
+					fullResponse.WriteString(noMessagesText)
+				} else {
+					log.Printf("Cannot add 'No relevant messages found' due to length limit.")
+				}
 			}
 
 			// Send the combined answer
