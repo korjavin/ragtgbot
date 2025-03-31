@@ -12,6 +12,7 @@ jobs:
   build-and-push-embedding-service:
     name: Build and Push Embedding Service Image
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
